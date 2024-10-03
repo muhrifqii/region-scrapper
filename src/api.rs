@@ -49,5 +49,7 @@ pub async fn loop_get(api_url: &str) -> HashMap<Level, Vec<MappedEntry>> {
 
 async fn fetch(api_url: &str, level: &Level, parent: &str) -> reqwest::Result<Vec<Entry>> {
     let url = format!("{}/?level={}&parent={}", api_url, level.as_str(), parent);
-    reqwest::get(&url).await?.json::<Vec<Entry>>().await
+    let response = reqwest::get(&url).await?;
+    debug!("Response: {:?}", &response);
+    response.json::<Vec<Entry>>().await
 }

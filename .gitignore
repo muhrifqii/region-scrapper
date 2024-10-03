@@ -1,3 +1,5 @@
 /target
 .env
 config.yml
+/data/json/*.json
+/data/yaml/*.yaml
