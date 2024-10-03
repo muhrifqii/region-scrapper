@@ -1,6 +1,4 @@
-use std::borrow::Borrow;
-
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::level::Level;
 
@@ -11,7 +9,7 @@ pub struct Entry {
     pub kode_pos: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct MappedEntry {
     pub code: String,
     pub parent_code: String,

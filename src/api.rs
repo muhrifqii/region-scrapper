@@ -1,8 +1,3 @@
-use log::{debug, error, info};
-use serde::de::DeserializeOwned;
-use std::borrow::Borrow;
-use tokio::sync::watch::error;
-
 use crate::{
     model::{
         entry::{Entry, MappedEntry},
@@ -10,76 +5,49 @@ use crate::{
     },
     util::client::handle_error,
 };
+use log::{debug, info};
+use std::collections::{HashMap, VecDeque};
 
-pub async fn get(api_url: &str) {
-    let mut level = Level::Provinsi;
-    let mut parent = 0;
+fn get_next_level(level: &Level) -> Option<Level> {
+    match level {
+        Level::Provinsi => Some(Level::Kabupaten),
+        Level::Kabupaten => Some(Level::Kecamatan),
+        Level::Kecamatan => Some(Level::Desa),
+        Level::Desa => None,
+    }
 }
 
-async fn loop_get(api_url: &str, level: &Level, parent: &str) -> Option<MappedEntry> {
-    debug!("Fetching data for level: {:?}, parent: {}", level, parent);
-    let result = fetch(api_url, level, parent).await;
-    match result {
-        Ok(data) => {
-            debug!("Fetched data for level: {:?}, parent: {}", level, parent);
+pub async fn loop_get(api_url: &str) -> HashMap<Level, Vec<MappedEntry>> {
+    let mut queue = VecDeque::new();
+    let mut mapped_entries: HashMap<Level, Vec<MappedEntry>> = HashMap::new();
 
-            let (entries, fetches): (Vec<MappedEntry>, Vec<Option<FetchRegion>>) = data
-                .iter()
-                .filter(|entry| !entry.kode_bps.is_empty())
-                .map(|entry| MappedEntry::from_entry(entry, parent, level))
-                .map(|entry| {
-                    let fetch_param = match level {
-                        Level::Provinsi => Some(Level::Kabupaten),
-                        Level::Kabupaten => Some(Level::Kecamatan),
-                        Level::Kecamatan => Some(Level::Desa),
-                        Level::Desa => None,
-                    }
-                    .map(|next_level| FetchRegion::new(api_url, &next_level, &entry.code.as_str()));
-                    (entry, fetch_param)
-                })
-                .unzip();
-            let fetches: Vec<FetchRegion> = fetches
-                .into_iter()
-                .filter(|f| f.is_some())
-                .map(|f| f.unwrap())
-                .collect();
-            let fetches = tokio::spawn(async move {
-                for fetch in fetches {
-                    let result = fetch.fetch().await;
+    queue.push_back((Level::Provinsi, "0".to_string()));
+    while let Some((level, parent)) = queue.pop_front() {
+        debug!("Fetching data for level: {:?}, parent: {}", &level, &parent);
+        let result = fetch(api_url, &level, &parent).await;
+        match result {
+            Ok(data) => {
+                info!("Fetched data for level: {:?}, parent: {}", &level, parent);
+                let entries: Vec<MappedEntry> = data
+                    .into_iter()
+                    .filter(|entry| !entry.kode_bps.is_empty())
+                    .map(|entry| MappedEntry::from_entry(&entry, &parent, &level))
+                    .collect();
+                if let Some(next_level) = get_next_level(&level) {
+                    entries
+                        .iter()
+                        .map(|entry| entry.code.to_string())
+                        .for_each(|parent_code| queue.push_back((next_level.clone(), parent_code)));
                 }
-            });
-        }
-        Err(e) => handle_error(e, &level, parent),
+                mapped_entries.insert(level.clone(), entries);
+            }
+            Err(e) => handle_error(e, &level, &parent),
+        };
     }
-    None
-}
-
-pub struct FetchRegion {
-    api_url: String,
-    level: Level,
-    parent: String,
-}
-
-impl FetchRegion {
-    pub fn new(api_url: &str, level: &Level, parent: &str) -> Self {
-        Self {
-            api_url: api_url.to_string(),
-            level: level.clone(),
-            parent: parent.to_string(),
-        }
-    }
-
-    pub async fn fetch(&self) -> reqwest::Result<Vec<Entry>> {
-        let url = format!(
-            "{}/?level={}&parent={}",
-            self.api_url,
-            self.level.as_str(),
-            self.parent
-        );
-        reqwest::get(&url).await?.json::<Vec<Entry>>().await
-    }
+    mapped_entries
 }
 
 async fn fetch(api_url: &str, level: &Level, parent: &str) -> reqwest::Result<Vec<Entry>> {
-    FetchRegion::new(api_url, level, parent).fetch().await
+    let url = format!("{}/?level={}&parent={}", api_url, level.as_str(), parent);
+    reqwest::get(&url).await?.json::<Vec<Entry>>().await
 }

@@ -1,4 +1,6 @@
-#[derive(Debug, Clone)]
+use serde::Serialize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub enum Level {
     Provinsi,
     Kabupaten,
