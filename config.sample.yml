@@ -1,0 +1,2 @@
+region_api:
+    url: http://localhost:3030/api/v1/region
