@@ -6,6 +6,7 @@ use super::level::Level;
 pub struct Entry {
     pub kode_bps: String,
     pub nama_bps: String,
+    pub nama_pos: String,
     pub kode_pos: String,
 }
 
