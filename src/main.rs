@@ -17,10 +17,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::new().unwrap();
     debug!("Config: {:?}", config);
     let url = config.region_api.url;
-    let mapped_entries = api::get(&url).await;
+    // let mapped_entries = api::get(&url).await;
+    let mapped_entries = api::get_simple(&url).await;
 
-    let write_json = writter::write_to_json(&mapped_entries, "data/json/all.json");
-    let write_yaml = writter::write_to_yaml(&mapped_entries, "data/yaml/all.yaml");
+    let write_json = writter::write_to_json(&mapped_entries, "data/json/simple.json");
+    let write_yaml = writter::write_to_yaml(&mapped_entries, "data/yaml/simple.yaml");
 
     let (json_result, yaml_result) = tokio::join!(write_json, write_yaml);
 

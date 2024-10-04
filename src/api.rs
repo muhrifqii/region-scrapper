@@ -1,6 +1,6 @@
 use crate::{
     model::{
-        entry::{Entry, MappedEntry},
+        entry::{Entry, MappedEntry, SimpleEntry},
         level::Level,
     },
     util::client::handle_error,
@@ -21,10 +21,43 @@ pub async fn get(api_url: &str) -> HashMap<Level, Vec<MappedEntry>> {
         match result {
             Ok(data) => {
                 info!("Fetched data for level: {:?}, parent: {}", &level, parent);
-                let entries: Vec<MappedEntry> = retain_unique_entries(data)
+                let entries: Vec<MappedEntry> = data
                     .into_iter()
                     .filter(|entry| !entry.kode_bps.is_empty())
                     .map(|entry| MappedEntry::from_entry(&entry, &parent, &level))
+                    .collect();
+                if let Some(next_level) = get_next_level(&level) {
+                    entries
+                        .iter()
+                        .map(|entry| entry.code.to_string())
+                        .for_each(|parent_code| queue.push_back((next_level.clone(), parent_code)));
+                }
+                mapped_entries
+                    .entry(level.clone())
+                    .or_insert_with(Vec::new)
+                    .extend(entries);
+            }
+            Err(e) => handle_error(e, &level, &parent),
+        };
+    }
+    mapped_entries
+}
+
+pub async fn get_simple(api_url: &str) -> HashMap<Level, Vec<MappedEntry>> {
+    let mut queue = VecDeque::new();
+    let mut mapped_entries: HashMap<Level, Vec<MappedEntry>> = HashMap::new();
+
+    queue.push_back((Level::Provinsi, "0".to_string()));
+    while let Some((level, parent)) = queue.pop_front() {
+        debug!("Fetching data for level: {:?}, parent: {}", &level, &parent);
+        let result = fetch_simple(api_url, &level, &parent).await;
+        match result {
+            Ok(data) => {
+                info!("Fetched data for level: {:?}, parent: {}", &level, parent);
+                let entries: Vec<MappedEntry> = data
+                    .into_iter()
+                    .filter(|entry| !entry.kode.is_empty())
+                    .map(|entry| MappedEntry::from_simple_entry(&entry, &parent, &level))
                     .collect();
                 if let Some(next_level) = get_next_level(&level) {
                     entries
@@ -71,6 +104,17 @@ async fn fetch(api_url: &str, level: &Level, parent: &str) -> reqwest::Result<Ve
     let response = reqwest::get(&url).await?;
     debug!("Response: {:?}", &response);
     response.json::<Vec<Entry>>().await
+}
+
+async fn fetch_simple(
+    api_url: &str,
+    level: &Level,
+    parent: &str,
+) -> reqwest::Result<Vec<SimpleEntry>> {
+    let url = format!("{}/?level={}&parent={}", api_url, level.as_str(), parent);
+    let response = reqwest::get(&url).await?;
+    debug!("Response: {:?}", &response);
+    response.json::<Vec<SimpleEntry>>().await
 }
 
 fn get_next_level(level: &Level) -> Option<Level> {
