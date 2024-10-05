@@ -8,7 +8,16 @@ authors = ["Muhammad Rifqi Fatchurrahman <muh_rif@live.com>"]
 
 [dependencies]
 config = { version = "0.14.0", features = ["yaml"] }
+env_logger = "0.11.5"
+itertools = "0.13.0"
 log = "0.4.22"
 reqwest = { version = "0.12.7", features = ["json"] }
 serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.128"
+serde_yaml = "0.9.34"
+strsim = "0.11.1"
 tokio = { version = "1.40.0", features = ["full"] }
+
+[dev-dependencies]
+mockall = "0.13.0"
+mockito = "1.5.0"
